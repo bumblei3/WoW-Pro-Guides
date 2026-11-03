@@ -743,16 +743,21 @@ local function UpdateLootNote(note, action, itemNames, k)
         return table.concat(itemNames, ", ")
     end
 
+    -- DeSteps may supply deDE leads. Without it the English leads stay.
+    local lead = WoWPro.DeSteps and WoWPro.DeSteps.LootLead and WoWPro.DeSteps.LootLead(action)
+    local names = table.concat(itemNames, ", ")
+
     -- Action-specific prefixes
     if action == "B" then
-        return "Buy " .. table.concat(itemNames, ", ") .. " " .. note
+        return ((lead and lead.prefix) or "Buy ") .. names .. " " .. note
     elseif action == "M" then
-        return "Craft " .. table.concat(itemNames, ", ") .. " " .. note
-    else
-        -- Default: kill + loot unless chat/noncombat flags override
-        if not (WoWPro.chat[k] or WoWPro.noncombat[k]) then
-            return "Kill and loot " .. note
+        if lead and lead.prefix then
+            return lead.prefix .. names .. (lead.after or " ") .. note
         end
+        return "Craft " .. names .. " " .. note
+    elseif not (WoWPro.chat[k] or WoWPro.noncombat[k]) then
+        -- Default: kill + loot unless chat/noncombat flags override
+        return ((lead and lead.prefix) or "Kill and loot ") .. note
     end
 
     return note
@@ -1365,6 +1370,17 @@ local BuildDropdownMenu = function(i, currentRow, step, QID, coord, sticky, GID)
     end
     WoWPro.RowDropdownMenu[i] = dropdown
 end
+
+-- Optional addon WoWPro_DeSteps. This file has no translated guide text.
+-- Missing addon: the row looks the same as before.
+function WoWPro.ApplyDeStepsDisplay(info)
+    local desteps = WoWPro.DeSteps
+    if not (desteps and desteps.Prepare) then
+        return info.step, info.note, info.target
+    end
+    return desteps.Prepare(info)
+end
+
 function WoWPro:RowUpdate(offset)
     local GID = WoWProDB.char.currentguide
     if WoWPro.MaybeCombatLockdown() or not GID or not WoWPro.Guides[GID] then
@@ -1469,10 +1485,11 @@ function WoWPro:RowUpdate(offset)
         -- Run module hook
         RunModulePreRowUpdate(module, currentRow)
 
-        -- Extract step fields
+        -- Extract step fields. Translation, when the local addon is loaded,
+        -- runs on the raw strings before markup expansion.
         local action = WoWPro.action[k]
-        local step   = NormalizeStepText(WoWPro.step[k])
-        local note   = NormalizeNote(WoWPro.note[k])
+        local stepSource = WoWPro.step[k]
+        local noteSource = WoWPro.note[k]
         local use    = WoWPro.use[k]
         local item   = WoWPro.item[k]
         local target = WoWPro.target[k]
@@ -1481,13 +1498,25 @@ function WoWPro:RowUpdate(offset)
         local switch = WoWPro.switch[k]
         local coord  = WoWPro.map[k]
         local zone   = WoWPro.zone[k]
+        stepSource, noteSource, target = WoWPro.ApplyDeStepsDisplay({
+            action = action,
+            step = stepSource,
+            note = noteSource,
+            target = target,
+            qid = WoWPro.QID[k],
+            active = WoWPro.active and WoWPro.active[k],
+            available = WoWPro.available and WoWPro.available[k],
+            npc = WoWPro.NPC and WoWPro.NPC[k],
+        })
+        local step = NormalizeStepText(stepSource)
+        local note = NormalizeNote(noteSource)
 
         if action == "H" and not use then
             use = WoWPro.SelectHearthstone()
         end
 
         -- Format coordinates
-        local formattedCoord, playerZone = FormatCoords(GID, action, step, coord)
+        local formattedCoord, playerZone = FormatCoords(GID, action, WoWPro.step[k], coord)
         if playerZone then
             zone = playerZone
         end

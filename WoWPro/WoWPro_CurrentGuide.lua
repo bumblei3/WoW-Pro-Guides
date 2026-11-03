@@ -381,6 +381,19 @@ function WoWPro.UpdateCurrentGuidePanel()
         end
 
         local step = steplist[index]
+        local note = WoWPro.note[index]
+        if WoWPro.ApplyDeStepsDisplay then
+            step, note = WoWPro.ApplyDeStepsDisplay({
+                action = WoWPro.action[index],
+                step = step,
+                note = note,
+                target = WoWPro.target and WoWPro.target[index],
+                qid = WoWPro.QID[index],
+                active = WoWPro.active and WoWPro.active[index],
+                available = WoWPro.available and WoWPro.available[index],
+                npc = WoWPro.NPC and WoWPro.NPC[index],
+            })
+        end
         if step then row.check:Show() else row.check:Hide() end
         if optional[index] then step = step.." (optional)" end
         if WoWPro.prof[index] then
@@ -414,7 +427,6 @@ function WoWPro.UpdateCurrentGuidePanel()
         WoWPro.SetActionTexture(row)
         row.iconTexture.tooltip.devIndex = index
 
-        local note = WoWPro.note[index]
         row.note:SetText(note)
 
         -- Setting the note frame size correctly --
